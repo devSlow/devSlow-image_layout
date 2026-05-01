@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getPaperInfo, getParagraphs, rewriteParagraph, acceptParagraph, rejectParagraph, exportDocument } from '@/api/document'
+import { getPaperInfo, getParagraphs, rewriteParagraph, acceptParagraph, rejectParagraph, exportDocument, getRemainingUsage } from '@/api/document'
 import type { ParagraphItem, PaperInfo } from '@/api/types'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
-import { ArrowLeft, Wand2, Check, X, Download, Loader2, RefreshCw, XCircle, List, FileText, Code, FileDown, Eye } from 'lucide-vue-next'
+import { ArrowLeft, Wand2, Check, X, Download, Loader2, RefreshCw, XCircle, List, FileText, Code, FileDown, Eye, Clock } from 'lucide-vue-next'
 import hljs from 'highlight.js'
 import PdfPreview from '@/components/PdfPreview.vue'
 
@@ -20,7 +20,40 @@ const exporting = ref(false)
 const editingText = ref('')
 const isEditing = ref(false)
 const previewRef = ref<HTMLElement | null>(null)
-const viewMode = ref<'text' | 'pdf'>('pdf')
+const viewMode = ref<'text' | 'pdf'>('text')
+const pdfLoadFailed = ref(false)
+const remainCount = ref<number | null>(null)
+const deviceId = ref('')
+
+const canRewrite = computed(() => remainCount.value !== null && remainCount.value > 0)
+
+onMounted(async () => {
+  // 获取设备指纹
+  const nav = navigator
+  const parts = [
+    nav.userAgent,
+    nav.platform,
+    nav.hardwareConcurrency || 0,
+    nav.deviceMemory || 0
+  ]
+  const str = parts.join('|||')
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i)
+    hash |= 0
+  }
+  deviceId.value = 'fp_' + Math.abs(hash)
+
+  // 获取剩余次数
+  try {
+    const res = await getRemainingUsage(deviceId.value)
+    remainCount.value = res.data.remain
+  } catch (e) {
+    remainCount.value = 10
+  }
+
+  await loadData()
+})
 
 const selected = computed(() => paragraphs.value.find(p => p.id === selectedId.value))
 
@@ -32,6 +65,12 @@ const rewriteStats = computed(() => {
   const canRewrite = paragraphs.value.filter(p => p.canRewrite).length
   const rewritten = paragraphs.value.filter(p => p.status === 'replaced').length
   return { canRewrite, rewritten }
+})
+
+watch(pdfLoadFailed, (failed) => {
+  if (failed) {
+    viewMode.value = 'text'
+  }
 })
 
 async function loadData() {
@@ -52,13 +91,20 @@ async function loadData() {
 
 async function handleRewrite() {
   if (!selected.value) return
+  if (!canRewrite.value) {
+    alert('今日免费次数已用完，请先兑换')
+    return
+  }
   const idx = paragraphs.value.findIndex(p => p.id === selected.value!.id)
   if (idx === -1) return
   paragraphs.value[idx].status = 'loading'
   try {
-    const res = await rewriteParagraph(paperId, selected.value.id)
+    const res = await rewriteParagraph(paperId, selected.value.id, deviceId.value)
     paragraphs.value[idx].rewrittenText = res.data.rewrittenText
     paragraphs.value[idx].status = 'rewritten'
+    // 刷新剩余次数
+    const remainRes = await getRemainingUsage(deviceId.value)
+    remainCount.value = remainRes.data.remain
   } catch (e: any) {
     alert(e.message || '润色失败')
     paragraphs.value[idx].status = 'original'
@@ -453,6 +499,12 @@ onMounted(loadData)
         </span>
       </div>
       <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-full">
+          <Clock class="w-4 h-4 text-muted-foreground" />
+          <span class="text-sm text-muted-foreground">今日剩余</span>
+          <span class="text-sm font-bold" :class="canRewrite ? 'text-primary' : 'text-destructive'">{{ remainCount ?? '-' }}</span>
+          <span class="text-sm text-muted-foreground">次</span>
+        </div>
         <div v-if="paperInfo && rewriteStats.rewritten > 0" class="text-sm text-muted-foreground">
           已润色 {{ rewriteStats.rewritten }} 段
         </div>
@@ -521,7 +573,7 @@ onMounted(loadData)
 
         <!-- PDF 预览 -->
         <div v-if="viewMode === 'pdf'" class="flex-1 overflow-hidden">
-          <PdfPreview :paperId="paperId" />
+          <PdfPreview :paperId="paperId" @load-failed="pdfLoadFailed = true" />
         </div>
 
         <!-- 文本预览（连续滚动） -->

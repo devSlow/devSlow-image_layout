@@ -1,12 +1,21 @@
 import request from './request'
 import type { UploadResult, PaperInfo, ParagraphList, RewriteResult, ExportResult } from './types'
 
-export function uploadDocument(file: File) {
+export function uploadDocument(file: File, deviceId: string) {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('deviceId', deviceId)
   return request.post<any, { data: UploadResult }>('/document/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
+}
+
+export function getRemainingUsage(deviceId: string) {
+  return request.get<any, { data: { remain: number } }>(`/remain?deviceId=${encodeURIComponent(deviceId)}`)
+}
+
+export function redeemCode(deviceId: string, code: string) {
+  return request.post<any, { data: { success: boolean; message: string; remain?: number } }>('/redeem', { deviceId, code })
 }
 
 export function getPaperInfo(paperId: string) {
@@ -17,8 +26,8 @@ export function getParagraphs(paperId: string) {
   return request.get<any, { data: ParagraphList }>(`/document/${paperId}/paragraphs`)
 }
 
-export function rewriteParagraph(paperId: string, paragraphId: string) {
-  return request.post<any, { data: RewriteResult }>(`/document/${paperId}/paragraph/${paragraphId}/rewrite`)
+export function rewriteParagraph(paperId: string, paragraphId: string, deviceId: string) {
+  return request.post<any, { data: RewriteResult }>(`/document/${paperId}/paragraph/${paragraphId}/rewrite`, { deviceId })
 }
 
 export function acceptParagraph(paperId: string, paragraphId: string, text?: string) {

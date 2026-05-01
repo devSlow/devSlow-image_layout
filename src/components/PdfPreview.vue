@@ -10,6 +10,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString()
 
 const props = defineProps<{ paperId: string }>()
+const emit = defineEmits<{
+  (e: 'load-failed'): void
+}>()
 
 const loading = ref(true)
 const currentPage = ref(1)
@@ -29,6 +32,7 @@ async function loadPdf() {
     await renderPage(1)
   } catch (e: any) {
     console.error('PDF 加载失败:', e)
+    emit('load-failed')
   } finally {
     loading.value = false
   }
