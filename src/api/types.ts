@@ -25,6 +25,7 @@ export interface ParagraphItem {
   imageUrl: string | null
   tableData: string | null
   styleData: string | null
+  htmlContent: string | null
   canRewrite: boolean
   status: string
 }
@@ -35,11 +36,32 @@ export interface ParagraphList {
   paragraphs: ParagraphItem[]
 }
 
+export interface ScoreResult {
+  directness: number
+  rhythm: number
+  trustworthiness: number
+  authenticity: number
+  conciseness: number
+  semanticFidelity: number
+  purity: number
+  total: number
+  level: string
+}
+
 export interface RewriteResult {
   paragraphId: string
   rewrittenText: string
+  round: number
+  score: ScoreResult | null
 }
 
 export interface ExportResult {
   downloadUrl: string
+}
+
+export interface QuickRewriteResult {
+  originalText: string
+  rewrittenText: string
+  round: number
+  score: ScoreResult | null
 }

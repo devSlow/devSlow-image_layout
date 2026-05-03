@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { uploadDocument, getRemainingUsage, redeemCode } from '@/api/document'
-import { Upload, FileText, Loader2, User, Clock, Ticket } from 'lucide-vue-next'
+import { Upload, FileText, Loader2, User, Clock, Ticket, ArrowLeft } from 'lucide-vue-next'
 import Card from '@/components/ui/Card.vue'
 
 const router = useRouter()
@@ -23,8 +23,8 @@ onMounted(async () => {
   const parts = [
     nav.userAgent,
     nav.platform,
-    nav.hardwareConcurrency || 0,
-    nav.deviceMemory || 0
+    (nav as any).hardwareConcurrency || 0,
+    (nav as any).deviceMemory || 0
   ]
   const str = parts.join('|||')
   let hash = 0
@@ -99,7 +99,7 @@ async function handleRedeem() {
   try {
     const res = await redeemCode(deviceId.value, redeemInput.value.trim())
     if (res.data.success) {
-      remainCount.value = res.data.remain
+      remainCount.value = res.data.remain ?? remainCount.value
       redeemMessage.value = '兑换成功！'
       redeemInput.value = ''
     } else {
@@ -114,27 +114,32 @@ async function handleRedeem() {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col bg-muted/50">
+  <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-primary/5 dark:from-slate-950 dark:via-slate-900 dark:to-primary/10">
     <!-- Header -->
-    <header class="flex items-center justify-between bg-background border-b shadow-sm px-4">
-      <div class="flex items-center gap-3 py-3">
-        <div class="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-          <User class="w-4 h-4 text-primary" />
+    <header class="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
+      <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+        <button @click="router.push('/')" class="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft class="w-4 h-4" />
+          <span class="text-sm">返回</span>
+        </button>
+        <div class="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
+          <router-link to="/quick" class="px-3 py-1.5 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground transition-colors">
+            快速降重
+          </router-link>
+          <router-link to="/upload" class="px-3 py-1.5 text-xs font-medium rounded-md bg-background text-foreground shadow-sm">
+            上传文档
+          </router-link>
         </div>
-        <div class="flex flex-col">
-          <p class="text-xs text-muted-foreground">当前设备</p>
-          <p class="text-sm font-medium font-mono text-foreground">{{ deviceId }}</p>
+        <div class="flex items-center gap-2">
+          <Clock class="w-4 h-4 text-muted-foreground" />
+          <span class="text-xs text-muted-foreground">剩余</span>
+          <span class="text-sm font-bold" :class="canUpload ? 'text-primary' : 'text-destructive'">{{ remainCount ?? '-' }}</span>
+          <span class="text-xs text-muted-foreground">次</span>
         </div>
-      </div>
-      <div class="flex items-center gap-2 py-2">
-        <Clock class="w-4 h-4 text-muted-foreground" />
-        <span class="text-sm text-muted-foreground">剩余</span>
-        <span class="text-base font-bold" :class="canUpload ? 'text-primary' : 'text-destructive'">{{ remainCount ?? '-' }}</span>
-        <span class="text-sm text-muted-foreground">次</span>
       </div>
     </header>
 
-    <div class="flex-1 flex items-center justify-center p-4">
+    <div class="flex items-center justify-center py-12 px-4">
       <div class="w-full max-w-xl">
         <div class="text-center mb-8">
           <h1 class="text-3xl font-bold tracking-tight">PaperPolish</h1>
@@ -169,7 +174,7 @@ async function handleRedeem() {
           </p>
         </Card>
 
-        <Card class="p-8" :class="{ 'opacity-50': !canUpload }">
+        <Card class="p-8" :class="canUpload ? '' : 'opacity-50'">
           <div
             class="border-2 border-dashed rounded-lg p-12 text-center transition-colors"
             :class="[
