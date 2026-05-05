@@ -2,7 +2,7 @@ import axios from 'axios'
 import router from '@/router'
 
 const request = axios.create({
-  baseURL: 'http://198.46.193.170:9091',
+  baseURL: 'http://198.46.193.170:9090',
   timeout: 300000
 })
 
