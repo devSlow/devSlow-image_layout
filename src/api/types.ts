@@ -65,3 +65,9 @@ export interface QuickRewriteResult {
   round: number
   score: ScoreResult | null
 }
+
+export interface PptGenerateResult {
+  paperId: string
+  downloadUrl: string
+  slideCount: number
+}

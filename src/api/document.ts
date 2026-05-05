@@ -1,5 +1,5 @@
 import request from './request'
-import type { UploadResult, PaperInfo, ParagraphList, RewriteResult, ExportResult, ScoreResult, QuickRewriteResult } from './types'
+import type { UploadResult, PaperInfo, ParagraphList, RewriteResult, ExportResult, ScoreResult, QuickRewriteResult, PptGenerateResult } from './types'
 
 export function uploadDocument(file: File, deviceId: string) {
   const formData = new FormData()
@@ -55,5 +55,14 @@ export function rewriteText(text: string, deviceId: string, round: number = 1) {
     text,
     deviceId,
     round
+  })
+}
+
+export function generatePpt(paperId: string, deviceId: string, signal?: AbortSignal) {
+  return request.post<any, { data: PptGenerateResult }>(`/document/${paperId}/generate-ppt`, {
+    deviceId
+  }, {
+    timeout: 600000,
+    signal
   })
 }

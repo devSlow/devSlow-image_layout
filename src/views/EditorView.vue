@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getPaperInfo, getParagraphs, rewriteParagraph, acceptParagraph, rejectParagraph, exportDocument, getRemainingUsage, scoreParagraph } from '@/api/document'
+import { getPaperInfo, getParagraphs, rewriteParagraph, acceptParagraph, rejectParagraph, exportDocument, getRemainingUsage, scoreParagraph, generatePpt } from '@/api/document'
 import type { ParagraphItem, PaperInfo } from '@/api/types'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
-import { ArrowLeft, Wand2, Check, X, Download, Loader2, RefreshCw, XCircle, List, FileText, Eye, Clock, PanelLeftClose, PanelLeft } from 'lucide-vue-next'
+import { ArrowLeft, Wand2, Check, X, Download, Loader2, RefreshCw, XCircle, List, FileText, Eye, Clock, PanelLeftClose, PanelLeft, Presentation } from 'lucide-vue-next'
+import { toast } from '@/composables/useToast'
+import { getDeviceId } from '@/lib/utils'
 import TocItem from '@/components/TocItem.vue'
 import type { TocNode as TocNodeType } from '@/components/TocItem.vue'
 
@@ -17,11 +19,11 @@ const paragraphs = ref<ParagraphItem[]>([])
 const selectedId = ref<string | null>(null)
 const loading = ref(false)
 const exporting = ref(false)
+const generatingPpt = ref(false)
 const editingText = ref('')
 const isEditing = ref(false)
 const previewRef = ref<HTMLElement | null>(null)
 const remainCount = ref<number | null>(null)
-const deviceId = ref('')
 const sidebarWidth = ref(240)
 const resizing = ref(false)
 const tocVisible = ref(true)
@@ -212,18 +214,8 @@ function handleMouseUp() {
 }
 
 onMounted(async () => {
-  const nav = navigator
-  const parts = [nav.userAgent, nav.platform, (nav as any).hardwareConcurrency || 0, (nav as any).deviceMemory || 0]
-  const str = parts.join('|||')
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i)
-    hash |= 0
-  }
-  deviceId.value = 'fp_' + Math.abs(hash)
-
   try {
-    const res = await getRemainingUsage(deviceId.value)
+    const res = await getRemainingUsage(getDeviceId())
     remainCount.value = res.data.remain
   } catch (e) {
     remainCount.value = 10
@@ -343,7 +335,7 @@ async function loadData() {
     paperInfo.value = infoRes.data
     paragraphs.value = paraRes.data.paragraphs
   } catch (e: any) {
-    alert(e.message || '加载失败')
+    toast.error(e.message || '加载失败')
   } finally {
     loading.value = false
   }
@@ -357,7 +349,7 @@ async function handleRewrite() {
 
   if (!targetPara) return
   if (!canRewrite.value) {
-    alert('今日免费次数已用完，请先兑换')
+    toast.warning('今日免费次数已用完，请先兑换')
     return
   }
 
@@ -383,9 +375,9 @@ async function handleRewrite() {
   roundProgress.value = '第1轮润色中 · 自然化...'
 
   try {
-    const res1 = await rewriteParagraph(paperId, targetPara.id, deviceId.value, originalText, 1)
+    const res1 = await rewriteParagraph(paperId, targetPara.id, getDeviceId(), originalText, 1)
     if (!canRewrite.value) {
-      alert('今日免费次数已用完，请先兑换')
+    toast.warning('今日免费次数已用完，请先兑换')
       resetParagraphStatus()
       roundProgress.value = ''
       isLocked.value = false
@@ -396,7 +388,7 @@ async function handleRewrite() {
     roundProgress.value = '第2轮润色中 · 降AI率...'
     let res2: any
     try {
-      res2 = await rewriteParagraph(paperId, targetPara.id, deviceId.value, round1Text, 2)
+      res2 = await rewriteParagraph(paperId, targetPara.id, getDeviceId(), round1Text, 2)
     } catch (e2: any) {
       // 第2轮失败，降级使用第1轮结果
       console.warn('第2轮润色失败，使用第1轮结果:', e2.message)
@@ -432,10 +424,10 @@ async function handleRewrite() {
       // 评分失败不影响主流程
     }
 
-    const remainRes = await getRemainingUsage(deviceId.value)
+    const remainRes = await getRemainingUsage(getDeviceId())
     remainCount.value = remainRes.data.remain
   } catch (e: any) {
-    alert(e.message || '润色失败')
+    toast.error(e.message || '润色失败')
     resetParagraphStatus()
     roundProgress.value = ''
     isLocked.value = false
@@ -509,7 +501,7 @@ async function handleAccept() {
     isEditing.value = false
     editingText.value = ''
   } catch (e: any) {
-    alert(e.message || '操作失败')
+    toast.error(e.message || '操作失败')
   }
 }
 
@@ -554,9 +546,26 @@ async function handleExport() {
     link.click()
     document.body.removeChild(link)
   } catch (e: any) {
-    alert(e.message || '导出失败')
+    toast.error(e.message || '导出失败')
   } finally {
     exporting.value = false
+  }
+}
+
+async function handleGeneratePpt() {
+  generatingPpt.value = true
+  try {
+    const res = await generatePpt(paperId, getDeviceId())
+    const link = document.createElement('a')
+    link.href = res.data.downloadUrl
+    link.download = '论文演示.pptx'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (e: any) {
+    toast.error(e.message || '生成 PPT 失败')
+  } finally {
+    generatingPpt.value = false
   }
 }
 
@@ -741,6 +750,11 @@ function buildFallbackTableHtml(tableData: string | null): string {
         <div v-if="paperInfo && rewriteStats.rewritten > 0" class="text-sm text-muted-foreground">
           已润色 {{ rewriteStats.rewritten }} 段
         </div>
+        <Button @click="handleGeneratePpt" :disabled="generatingPpt" variant="outline" class="gap-2">
+          <Presentation v-if="!generatingPpt" class="w-4 h-4" />
+          <Loader2 v-else class="w-4 h-4 animate-spin" />
+          生成 PPT
+        </Button>
         <Button @click="handleExport" :disabled="exporting" class="gap-2">
           <Download v-if="!exporting" class="w-4 h-4" />
           <Loader2 v-else class="w-4 h-4 animate-spin" />

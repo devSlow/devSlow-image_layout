@@ -1,9 +1,18 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { FileText, Wand2, Shield, Zap, ArrowRight, Sparkles, BarChart3 } from 'lucide-vue-next'
+import { FileText, Wand2, Shield, Zap, ArrowRight, Sparkles, BarChart3, Presentation } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 
 const router = useRouter()
+const currentYear = new Date().getFullYear()
+
+function handlePptClick() {
+  router.push('/ppt')
+}
+
+function scrollToIntro() {
+  document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })
+}
 
 const features = [
   {
@@ -70,10 +79,15 @@ const stats = [
           </div>
           <span class="text-lg font-bold tracking-tight">PaperPolish</span>
         </div>
-        <Button @click="router.push('/quick')" class="text-sm">
-          免费体验
-          <ArrowRight class="w-4 h-4 ml-1" />
-        </Button>
+        <div class="flex items-center gap-4">
+          <button @click="scrollToIntro" class="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            了解更多
+          </button>
+          <Button @click="router.push('/quick')" class="text-sm">
+            立即体验
+            <ArrowRight class="w-4 h-4 ml-1" />
+          </Button>
+        </div>
       </div>
     </header>
 
@@ -96,10 +110,20 @@ const stats = [
           <Wand2 class="w-5 h-5 mr-2" />
           快速降重
         </Button>
-        <button @click="router.push('/upload')" class="inline-flex items-center justify-center rounded-md border bg-background px-8 py-3 text-base font-medium hover:bg-accent transition-colors cursor-pointer">
-          <FileText class="w-5 h-5 mr-2" />
-          上传文档
-        </button>
+        <div class="relative">
+          <button @click="handlePptClick" class="inline-flex items-center justify-center rounded-md border bg-background px-8 py-3 text-base font-medium hover:bg-accent transition-colors cursor-pointer">
+            <Presentation class="w-5 h-5 mr-2" />
+            生成PPT
+          </button>
+          <span class="absolute -top-2 -right-2 px-1.5 py-0.5 text-[10px] font-bold text-white bg-primary rounded-full shadow-sm">Beta</span>
+        </div>
+        <div class="relative">
+          <button @click="router.push('/upload')" class="inline-flex items-center justify-center rounded-md border bg-background px-8 py-3 text-base font-medium hover:bg-accent transition-colors cursor-pointer">
+            <FileText class="w-5 h-5 mr-2" />
+            上传文档
+          </button>
+          <span class="absolute -top-2 -right-2 px-1.5 py-0.5 text-[10px] font-bold text-white bg-orange-500 rounded-full shadow-sm">内测</span>
+        </div>
       </div>
     </section>
 
@@ -185,7 +209,7 @@ const stats = [
           <span class="text-sm font-semibold">PaperPolish</span>
         </div>
         <p class="text-sm text-muted-foreground">
-          © 2024 PaperPolish. All rights reserved.
+          © {{ currentYear }} PaperPolish. All rights reserved.
         </p>
         <div class="flex items-center gap-4">
           <a href="#" class="text-sm text-muted-foreground hover:text-foreground transition-colors">隐私政策</a>

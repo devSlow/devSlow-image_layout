@@ -1,48 +1,44 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { uploadDocument, getRemainingUsage, redeemCode } from '@/api/document'
-import { Upload, FileText, Loader2, User, Clock, Ticket, ArrowLeft } from 'lucide-vue-next'
+import { uploadDocument, getRemainingUsage } from '@/api/document'
+import { Upload, FileText, Loader2, Clock, QrCode, RefreshCw, CheckCircle2, ArrowLeft } from 'lucide-vue-next'
 import Card from '@/components/ui/Card.vue'
+import InputOTP from '@/components/ui/InputOTP.vue'
+import Button from '@/components/ui/Button.vue'
+import { useRedeem } from '@/composables/useRedeem'
+import { toast } from '@/composables/useToast'
+import { getDeviceId } from '@/lib/utils'
 
 const router = useRouter()
 const isDragging = ref(false)
 const isUploading = ref(false)
-const errorMessage = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const remainCount = ref<number | null>(null)
-const deviceId = ref('')
-const redeemInput = ref('')
-const isRedeeming = ref(false)
-const redeemMessage = ref('')
 
-const canUpload = computed(() => remainCount.value !== null && remainCount.value > 0)
+const canUpload = computed(() => {
+  console.log('[Upload] canUpload 计算, remainCount:', remainCount.value)
+  return remainCount.value === null || remainCount.value > 0
+})
+
+const { showRedeem, redeemSessionId, redeemQrUrl, redeemCode, redeemInputCode, isRedeeming, isRedeemSuccess, redeemTab, openRedeem, handleRedeemConfirm, handleRedeemCode, closeRedeem } = useRedeem(remainCount)
 
 onMounted(async () => {
-  const nav = navigator
-  const parts = [
-    nav.userAgent,
-    nav.platform,
-    (nav as any).hardwareConcurrency || 0,
-    (nav as any).deviceMemory || 0
-  ]
-  const str = parts.join('|||')
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i)
-    hash |= 0
-  }
-  deviceId.value = 'fp_' + Math.abs(hash)
-
   fetchRemaining()
+  toast.info('⚠️ 上传文档功能目前处于内测阶段，部分格式可能存在兼容问题，正在持续优化中...')
+})
+
+onUnmounted(() => {
+  // useRedeem 内部已处理清理
 })
 
 async function fetchRemaining() {
+  const did = getDeviceId()
   const fetchWithTimeout = async () => {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 3000)
     try {
-      const res = await getRemainingUsage(deviceId.value)
+      const res = await getRemainingUsage(did)
       clearTimeout(timeout)
       remainCount.value = res.data.remain
     } catch (e) {
@@ -55,20 +51,22 @@ async function fetchRemaining() {
 
 async function handleFile(file: File) {
   if (!file.name.toLowerCase().endsWith('.docx')) {
-    errorMessage.value = '仅支持 .docx 格式文件'
+    toast.error('仅支持 .docx 格式文件')
     return
   }
   if (!canUpload.value) {
-    errorMessage.value = '今日免费次数已用完，请先兑换'
+    toast.error('今日免费次数已用完，请先兑换')
     return
   }
-  errorMessage.value = ''
   isUploading.value = true
+  if (remainCount.value !== null) remainCount.value--
   try {
-    const res = await uploadDocument(file, deviceId.value)
+    const res = await uploadDocument(file, getDeviceId())
+    fetchRemaining()
     router.push({ name: 'editor', params: { paperId: res.data.paperId } })
   } catch (e: any) {
-    errorMessage.value = e.message || '上传失败'
+    toast.error(e.message || '上传失败')
+    fetchRemaining()
   } finally {
     isUploading.value = false
     if (fileInput.value) {
@@ -88,29 +86,6 @@ function onFileChange(e: Event) {
   const file = input.files?.[0]
   if (file) handleFile(file)
 }
-
-async function handleRedeem() {
-  if (!redeemInput.value.trim()) {
-    redeemMessage.value = '请输入兑换码'
-    return
-  }
-  isRedeeming.value = true
-  redeemMessage.value = ''
-  try {
-    const res = await redeemCode(deviceId.value, redeemInput.value.trim())
-    if (res.data.success) {
-      remainCount.value = res.data.remain ?? remainCount.value
-      redeemMessage.value = '兑换成功！'
-      redeemInput.value = ''
-    } else {
-      redeemMessage.value = res.data.message || '兑换失败'
-    }
-  } catch (e: any) {
-    redeemMessage.value = e.message || '兑换失败'
-  } finally {
-    isRedeeming.value = false
-  }
-}
 </script>
 
 <template>
@@ -123,56 +98,113 @@ async function handleRedeem() {
           <span class="text-sm">返回</span>
         </button>
         <div class="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
-          <router-link to="/quick" class="px-3 py-1.5 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground transition-colors">
+          <router-link to="/quick" active-class="bg-background text-foreground shadow-sm" class="px-3 py-1.5 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground">
             快速降重
           </router-link>
-          <router-link to="/upload" class="px-3 py-1.5 text-xs font-medium rounded-md bg-background text-foreground shadow-sm">
+          <router-link to="/ppt" active-class="bg-background text-foreground shadow-sm" class="px-3 py-1.5 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground">
+            生成PPT
+          </router-link>
+          <router-link to="/upload" active-class="bg-background text-foreground shadow-sm" class="px-3 py-1.5 text-xs font-medium rounded-md text-foreground shadow-sm">
             上传文档
           </router-link>
         </div>
         <div class="flex items-center gap-2">
           <Clock class="w-4 h-4 text-muted-foreground" />
           <span class="text-xs text-muted-foreground">剩余</span>
-          <span class="text-sm font-bold" :class="canUpload ? 'text-primary' : 'text-destructive'">{{ remainCount ?? '-' }}</span>
+          <span class="text-sm font-bold min-w-[1rem] text-center" :class="remainCount !== null && remainCount > 0 ? 'text-primary' : 'text-destructive'">{{ remainCount ?? '-' }}</span>
           <span class="text-xs text-muted-foreground">次</span>
+          <Button @click="openRedeem" variant="destructive" size="xs" class="ml-1 px-2 py-0.5 text-xs">
+            获取
+          </Button>
         </div>
       </div>
     </header>
 
-    <div class="flex items-center justify-center py-12 px-4">
-      <div class="w-full max-w-xl">
-        <div class="text-center mb-8">
-          <h1 class="text-3xl font-bold tracking-tight">PaperPolish</h1>
-          <p class="text-muted-foreground mt-2">可视化段落级论文降重润色工具</p>
+    <div class="max-w-6xl mx-auto px-4 py-8">
+      <!-- Empty state -->
+      <div class="text-center py-16">
+        <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
+          <Upload class="w-8 h-8 text-primary" />
+        </div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">上传文档降重</h1>
+        <p class="mt-3 text-muted-foreground max-w-md mx-auto">
+          上传 Word 文档，可视化逐段 AI 润色
+        </p>
+      </div>
+
+        <!-- 次数用完时显示获取次数按钮 -->
+        <div v-if="!canUpload" class="mb-6 flex justify-center">
+          <Button @click="openRedeem" variant="destructive">
+            <QrCode class="w-4 h-4 mr-2" />
+            获取使用次数（扫码）
+          </Button>
         </div>
 
-        <!-- 次数用完时显示兑换卡片 -->
-        <Card v-if="!canUpload" class="p-6 mb-6 border-destructive/50 bg-destructive/5">
-          <div class="flex items-center gap-3 mb-4">
-            <Ticket class="w-6 h-6 text-destructive" />
-            <h3 class="text-lg font-semibold text-destructive">今日免费次数已用完</h3>
+        <!-- 扫码兑换模态框 -->
+        <div v-if="showRedeem" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="closeRedeem">
+          <div class="w-full max-w-md bg-background rounded-xl shadow-lg p-6 mx-4">
+            <!-- 成功状态 -->
+            <div v-if="isRedeemSuccess" class="text-center py-8">
+              <div class="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 class="w-10 h-10 text-green-600" />
+              </div>
+              <h2 class="text-xl font-semibold text-green-600">兑换成功！</h2>
+              <p class="text-muted-foreground mt-2">已获得使用次数</p>
+            </div>
+
+            <!-- 兑换表单 -->
+            <div v-else>
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">获取使用次数</h3>
+                <button @click="closeRedeem" class="text-muted-foreground hover:text-foreground">
+                  <X class="w-5 h-5" />
+                </button>
+              </div>
+
+              <!-- Tab 切换 -->
+              <div class="flex gap-1 bg-muted/50 rounded-lg p-0.5 mb-5">
+                <button @click="redeemTab = 'qrcode'" :class="['flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors', redeemTab === 'qrcode' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground']">扫码兑换</button>
+                <button @click="redeemTab = 'code'" :class="['flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors', redeemTab === 'code' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground']">充值码</button>
+              </div>
+
+              <!-- 扫码兑换 -->
+              <template v-if="redeemTab === 'qrcode'">
+                <div class="flex flex-col items-center mb-6">
+                  <div class="w-48 h-48 rounded-lg border bg-muted/30 flex items-center justify-center mb-3">
+                    <img v-if="redeemQrUrl" :src="redeemQrUrl" alt="QR Code" class="w-44 h-44" />
+                  </div>
+                  <p class="text-xs text-muted-foreground mb-1">请使用微信扫描二维码</p>
+                  <p class="text-xs text-muted-foreground font-mono">sessionId: {{ redeemSessionId }}</p>
+                </div>
+                <div class="relative mb-5">
+                  <div class="absolute inset-0 flex items-center"><div class="w-full border-t"></div></div>
+                  <div class="relative flex justify-center text-xs"><span class="bg-background px-2 text-muted-foreground">输入验证码</span></div>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                  <InputOTP v-model="redeemCode" />
+                  <Button @click="handleRedeemConfirm" :disabled="redeemCode.length !== 6 || isRedeeming" class="w-full">
+                    <RefreshCw v-if="isRedeeming" class="w-4 h-4 mr-2 animate-spin" />
+                    {{ isRedeeming ? '验证中...' : '确认兑换' }}
+                  </Button>
+                </div>
+              </template>
+
+              <!-- 充值码兑换 -->
+              <template v-else>
+                <div class="flex flex-col gap-4">
+                  <div>
+                    <label class="text-sm text-muted-foreground mb-2 block">请输入充值码</label>
+                    <input v-model="redeemInputCode" type="text" placeholder="输入充值码" class="w-full px-3 py-2 rounded-lg border bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                  </div>
+                  <Button @click="handleRedeemCode" :disabled="!redeemInputCode.trim() || isRedeeming" class="w-full">
+                    <RefreshCw v-if="isRedeeming" class="w-4 h-4 mr-2 animate-spin" />
+                    {{ isRedeeming ? '兑换中...' : '确认兑换' }}
+                  </Button>
+                </div>
+              </template>
+            </div>
           </div>
-          <p class="text-sm text-muted-foreground mb-4">请在小程序获取兑换码，激活后继续使用</p>
-          <div class="flex gap-2">
-            <input
-              v-model="redeemInput"
-              type="text"
-              placeholder="请输入兑换码"
-              class="flex-1 px-3 py-2 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-destructive"
-              @keyup.enter="handleRedeem"
-            />
-            <button
-              @click="handleRedeem"
-              :disabled="isRedeeming"
-              class="px-4 py-2 text-sm font-medium text-white bg-destructive rounded-md hover:bg-destructive/90 disabled:opacity-50"
-            >
-              {{ isRedeeming ? '兑换中...' : '确定兑换' }}
-            </button>
-          </div>
-          <p v-if="redeemMessage" class="mt-2 text-sm" :class="redeemMessage.includes('成功') ? 'text-green-600' : 'text-destructive'">
-            {{ redeemMessage }}
-          </p>
-        </Card>
+        </div>
 
         <Card class="p-8" :class="canUpload ? '' : 'opacity-50'">
           <div
@@ -213,9 +245,6 @@ async function handleRedeem() {
             <span class="text-sm">正在上传并解析文档...</span>
           </div>
 
-          <div v-if="errorMessage" class="mt-4 text-center text-sm text-destructive">
-            {{ errorMessage }}
-          </div>
         </Card>
 
         <div class="mt-6 flex items-center justify-center gap-6 text-sm text-muted-foreground">
@@ -230,5 +259,4 @@ async function handleRedeem() {
         </div>
       </div>
     </div>
-  </div>
-</template>
+  </template>

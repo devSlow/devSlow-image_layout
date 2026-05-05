@@ -1,8 +1,18 @@
 import axios from 'axios'
+import router from '@/router'
 
 const request = axios.create({
   baseURL: '/api',
   timeout: 300000
+})
+
+// 请求拦截：自动携带 JWT
+request.interceptors.request.use(config => {
+  const token = localStorage.getItem('pp_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
 })
 
 request.interceptors.response.use(
@@ -14,6 +24,10 @@ request.interceptors.response.use(
     return data
   },
   (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('pp_token')
+      router.push({ path: '/verify', query: { redirect: window.location.pathname } })
+    }
     return Promise.reject(error)
   }
 )

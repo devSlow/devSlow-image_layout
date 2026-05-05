@@ -16,6 +16,7 @@
     "highlight.js": "^11.11.1",
     "lucide-vue-next": "^1.0.0",
     "pdfjs-dist": "4.4.168",
+    "qrcode": "^1.5.4",
     "radix-vue": "^1.9.17",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.4",
