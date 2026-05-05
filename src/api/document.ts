@@ -15,7 +15,7 @@ export function getRemainingUsage(deviceId: string) {
 }
 
 export function redeemCode(deviceId: string, code: string) {
-  return request.post<any, { data: { success: boolean; message: string; remain?: number } }>('/api/redeem', { deviceId, code })
+  return request.post<any, { data: { success: boolean; message: string; added?: number; remain?: number; token?: string } }>('/api/redeem', { deviceId, code })
 }
 
 export function getPaperInfo(paperId: string) {

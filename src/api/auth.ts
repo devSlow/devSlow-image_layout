@@ -11,6 +11,7 @@ export interface VerifyConfirmRes {
 export interface VerifyRedeemRes {
   success: boolean
   added: number
+  remain: number
 }
 
 export function generateVerify() {

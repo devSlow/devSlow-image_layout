@@ -128,7 +128,7 @@ function getScoreBarColor(score: number, max: number) {
   return 'bg-red-500'
 }
 
-const scoreDimensions = [
+const scoreDimensions: { key: keyof ScoreResult; label: string; max: number }[] = [
   { key: 'directness', label: '流畅度', max: 10 },
   { key: 'rhythm', label: '节奏感', max: 10 },
   { key: 'trustworthiness', label: '可信度', max: 10 },
@@ -292,14 +292,14 @@ const scoreDimensions = [
             <div v-for="dim in scoreDimensions" :key="dim.key" class="p-3 rounded-lg bg-muted/30">
               <div class="flex items-center justify-between mb-2">
                 <span class="text-xs text-muted-foreground">{{ dim.label }}</span>
-                <span :class="['text-sm font-semibold', getScoreColor(scoreResult[dim.key], dim.max)]">
+                <span :class="['text-sm font-semibold', getScoreColor(Number(scoreResult[dim.key]), dim.max)]">
                   {{ scoreResult[dim.key] }}/{{ dim.max }}
                 </span>
               </div>
               <div class="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
-                  :class="['h-full rounded-full transition-all', getScoreBarColor(scoreResult[dim.key], dim.max)]"
-                  :style="{ width: (scoreResult[dim.key] / dim.max * 100) + '%' }"
+                  :class="['h-full rounded-full transition-all', getScoreBarColor(Number(scoreResult[dim.key]), dim.max)]"
+                  :style="{ width: (Number(scoreResult[dim.key]) / dim.max * 100) + '%' }"
                 ></div>
               </div>
             </div>
