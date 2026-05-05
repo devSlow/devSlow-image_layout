@@ -18,7 +18,7 @@ export function generateVerify() {
 }
 
 export function getQrCodeUrl(sessionId: string) {
-  return `http://localhost:9091/api/auth/verify/qrcode?sessionId=${sessionId}`
+  return `https://paper.devslow.ccwu.cc/api/auth/verify/qrcode?sessionId=${sessionId}`
 }
 
 export function getVerifyCode(sessionId: string) {

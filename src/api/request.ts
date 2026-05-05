@@ -2,7 +2,7 @@ import axios from 'axios'
 import router from '@/router'
 
 const request = axios.create({
-  baseURL: 'http://localhost:9091',
+  baseURL: 'https://paper.devslow.ccwu.cc',
   timeout: 300000
 })
 

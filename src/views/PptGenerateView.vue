@@ -70,9 +70,11 @@ async function handleFileUpload(event: Event) {
     formData.append('file', file)
     formData.append('deviceId', getDeviceId())
 
-    const response = await fetch('/api/document/upload', {
+    const token = localStorage.getItem('pp_token')
+    const response = await fetch('https://paper.devslow.ccwu.cc/api/document/upload', {
       method: 'POST',
-      body: formData
+      body: formData,
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     })
 
     if (!response.ok) {
