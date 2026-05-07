@@ -31,6 +31,7 @@ const expandedTocNodes = ref<Set<string>>(new Set())
 const scoreResult = ref<{ total: number; level: string; directness: number; rhythm: number; trustworthiness: number; authenticity: number; conciseness: number; semanticFidelity: number; purity: number } | null>(null)
 const isLocked = ref(false)
 const roundProgress = ref('')
+const rightPanelVisible = ref(false)
 
 const selectedRange = ref<{
   paraId: string
@@ -348,6 +349,10 @@ async function handleRewrite() {
     : selected.value
 
   if (!targetPara) return
+  
+  // 保存当前选中的段落ID，防止润色过程中面板关闭
+  const currentSelectedId = selectedId.value
+  
   if (!canRewrite.value) {
     toast.warning('今日免费次数已用完，请先兑换')
     return
@@ -413,7 +418,12 @@ async function handleRewrite() {
 
     editingText.value = res2.data.rewrittenText
     roundProgress.value = ''
-    isLocked.value = true
+    isLocked.value = false
+    
+    // 确保selectedId不被清空，保持右侧面板显示
+    if (!selectedId.value && currentSelectedId) {
+      selectedId.value = currentSelectedId
+    }
 
     // 润色完成后立即调用评分
     try {
@@ -431,6 +441,10 @@ async function handleRewrite() {
     resetParagraphStatus()
     roundProgress.value = ''
     isLocked.value = false
+    // 确保selectedId不被清空
+    if (!selectedId.value && currentSelectedId) {
+      selectedId.value = currentSelectedId
+    }
   }
 }
 
@@ -570,6 +584,11 @@ async function handleGeneratePpt() {
 }
 
 function closePanel() {
+  // 只折叠面板，不清空选中状态
+  rightPanelVisible.value = false
+}
+
+function clearSelection() {
   selectedId.value = null
   selectedRange.value = null
   selectedRanges.value = []
@@ -578,7 +597,15 @@ function closePanel() {
   scoreResult.value = null
 }
 
+function toggleRightPanel() {
+  rightPanelVisible.value = !rightPanelVisible.value
+}
+
 watch(selected, (newVal) => {
+  // 当选中段落时自动显示右侧面板
+  if (newVal) {
+    rightPanelVisible.value = true
+  }
   if (newVal?.rewrittenText) {
     editingText.value = newVal.rewrittenText
   } else {
@@ -844,14 +871,23 @@ function buildFallbackTableHtml(tableData: string | null): string {
                 </span>
               </div>
             </div>
-          </template>
-        </div>
-      </main>
+           </template>
+         </div>
+       </main>
+
+       <!-- 右侧面板切换按钮 -->
+       <button 
+         class="flex items-center justify-center w-5 bg-muted/30 border-l hover:bg-muted cursor-pointer transition-colors self-stretch"
+         @click="toggleRightPanel"
+         :title="rightPanelVisible ? '收起面板' : '展开面板'"
+       >
+         <span class="text-xs text-muted-foreground">{{ rightPanelVisible ? '›' : '‹' }}</span>
+       </button>
 
        <!-- 右栏：润色操作面板 -->
        <aside
           class="bg-background border-l shrink-0 flex flex-col"
-          :style="{ width: selected ? '380px' : '0px', opacity: selected ? 1 : 0, transition: 'width 0.2s ease-in-out, opacity 0.2s ease-in-out', pointerEvents: selected ? 'auto' : 'none' }"
+          :style="{ width: rightPanelVisible ? '380px' : '0px', opacity: rightPanelVisible ? 1 : 0, transition: 'width 0.2s ease-in-out, opacity 0.2s ease-in-out', pointerEvents: rightPanelVisible ? 'auto' : 'none' }"
        >
            <div class="flex flex-col h-full overflow-hidden">
            <template v-if="selected">
@@ -961,7 +997,7 @@ function buildFallbackTableHtml(tableData: string | null): string {
             <!-- 初始状态：润色按钮 -->
             <Button
               v-if="selected.canRewrite && selected.status === 'original' && !isLocked"
-              @click="handleRewrite"
+              @click.stop="handleRewrite"
               class="w-full gap-2"
             >
               <Wand2 class="w-4 h-4" />
@@ -970,15 +1006,15 @@ function buildFallbackTableHtml(tableData: string | null): string {
 
             <!-- 润色完成：接受/重新生成/取消 -->
             <template v-if="selected.status === 'done'">
-              <Button @click="handleAccept" class="w-full gap-2">
+              <Button @click.stop="handleAccept" class="w-full gap-2">
                 <Check class="w-4 h-4" />
                 接受并替换原文
               </Button>
-              <Button @click="handleRegenerate" variant="outline" class="w-full gap-2">
+              <Button @click.stop="handleRegenerate" variant="outline" class="w-full gap-2">
                 <RefreshCw class="w-4 h-4" />
                 重新生成
               </Button>
-              <Button @click="handleCancel" variant="outline" class="w-full gap-2">
+              <Button @click.stop="handleCancel" variant="outline" class="w-full gap-2">
                 <X class="w-4 h-4" />
                 取消
               </Button>
@@ -987,7 +1023,7 @@ function buildFallbackTableHtml(tableData: string | null): string {
             <!-- 已采纳后：重新润色 -->
             <Button
               v-if="selected.status === 'replaced' && !isLocked"
-              @click="handleRewrite"
+              @click.stop="handleRewrite"
               variant="outline"
               class="w-full gap-2"
             >
